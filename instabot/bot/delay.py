@@ -2,8 +2,8 @@
     Function to calculate delays for like/follow/unfollow etc.
 """
 
-import time
 import random
+import time
 
 
 def add_dispersion(delay_value):
@@ -22,6 +22,11 @@ def sleep_if_need(last_action, target_delay):
 def like_delay(bot):
     sleep_if_need(bot.last_like, bot.like_delay)
     bot.last_like = time.time()
+
+
+def message_delay(bot):
+    sleep_if_need(bot.last_message, bot.message_delay)
+    bot.last_message = time.time()
 
 
 def unlike_delay(bot):

@@ -1,6 +1,6 @@
 from tqdm import tqdm
 
-from . import delay
+from . import delay, limits
 
 
 def send_message(self, text, user_ids, thread_id=None):
@@ -14,14 +14,20 @@ def send_message(self, text, user_ids, thread_id=None):
     if not isinstance(text, str) and isinstance(user_ids, (list, str)):
         self.logger.error('Text must be an string, user_ids must be an list or string')
         return False
-    delay.small_delay(self)
+
+    if not limits.check_if_bot_can_send_message(self):
+        self.logger.info("Out of messages for today.")
+        return False
+
+    delay.message_delay(self)
     urls = self.extract_urls(text)
     item_type = 'links' if urls else 'message'
     if super(self.__class__, self).sendDirectItem(item_type, user_ids, text=text,
                                                   thread=thread_id, urls=urls):
-        # ToDo: need to add counter
+        self.total_sent_messages += 1
         return True
-    self.logger.info("Message to {user_ids} wasn't sended".format(user_ids=user_ids))
+
+    self.logger.info("Message to {user_ids} wasn't sent".format(user_ids=user_ids))
     return False
 
 
@@ -51,14 +57,20 @@ def send_media(self, media_id, user_ids, text='', thread_id=None):
     if not isinstance(text, str) and not isinstance(user_ids, (list, str)):
         self.logger.error('Text must be an string, user_ids must be an list or string')
         return False
+    if not limits.check_if_bot_can_send_message(self):
+        self.logger.info("Out of messages for today.")
+        return False
+
     media = self.get_media_info(media_id)
     media = media[0] if isinstance(media, list) else media
-    delay.small_delay(self)
+
+    delay.message_delay(self)
     if super(self.__class__, self).sendDirectItem('media_share', user_ids, text=text, thread=thread_id,
                                                   media_type=media.get('media_type'), media_id=media.get('id')):
-        # ToDo: need to add counter
+        self.total_sent_messages += 1
         return True
-    self.logger.info("Message to {user_ids} wasn't sended".format(user_ids=user_ids))
+
+    self.logger.info("Message to {user_ids} wasn't sent".format(user_ids=user_ids))
     return False
 
 
@@ -88,12 +100,18 @@ def send_hashtag(self, hashtag, user_ids, text='', thread_id=None):
     if not isinstance(text, str) and not isinstance(user_ids, (list, str)):
         self.logger.error('Text must be an string, user_ids must be an list or string')
         return False
-    delay.small_delay(self)
+
+    if not limits.check_if_bot_can_send_message(self):
+        self.logger.info("Out of messages for today.")
+        return False
+
+    delay.message_delay(self)
     if super(self.__class__, self).sendDirectItem('hashtag', user_ids, text=text, thread=thread_id,
                                                   hashtag=hashtag):
-        # ToDo: need to add counter
+        self.total_sent_messages += 1
         return True
-    self.logger.info("Message to {user_ids} wasn't sended".format(user_ids=user_ids))
+
+    self.logger.info("Message to {user_ids} wasn't sent".format(user_ids=user_ids))
     return False
 
 
@@ -110,12 +128,17 @@ def send_profile(self, profile_user_id, user_ids, text='', thread_id=None):
     if not isinstance(text, str) and not isinstance(user_ids, (list, str)):
         self.logger.error('Text must be an string, user_ids must be an list or string')
         return False
-    delay.small_delay(self)
+
+    if not limits.check_if_bot_can_send_message(self):
+        self.logger.info("Out of messages for today.")
+        return False
+
+    delay.message_delay(self)
     if super(self.__class__, self).sendDirectItem('profile', user_ids, text=text, thread=thread_id,
                                                   profile_user_id=profile_id):
-        # ToDo: need to add counter
+        self.total_sent_messages += 1
         return True
-    self.logger.info("Message to {user_ids} wasn't sended".format(user_ids=user_ids))
+    self.logger.info("Message to {user_ids} wasn't sent".format(user_ids=user_ids))
     return False
 
 
@@ -130,11 +153,16 @@ def send_like(self, user_ids, thread_id=None):
     if not isinstance(user_ids, (list, str)):
         self.logger.error('Text must be an string, user_ids must be an list or string')
         return False
-    delay.small_delay(self)
+
+    if not limits.check_if_bot_can_send_message(self):
+        self.logger.info("Out of messages for today.")
+        return False
+
+    delay.message_delay(self)
     if super(self.__class__, self).sendDirectItem('like', user_ids, thread=thread_id):
-        # ToDo: need to add counter
+        self.total_sent_messages += 1
         return True
-    self.logger.info("Message to {user_ids} wasn't sended".format(user_ids=user_ids))
+    self.logger.info("Message to {user_ids} wasn't sent".format(user_ids=user_ids))
     return False
 
 
