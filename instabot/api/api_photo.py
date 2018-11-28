@@ -1,5 +1,4 @@
 import imghdr
-import json
 import os
 import shutil
 import struct
@@ -10,44 +9,67 @@ from requests_toolbelt import MultipartEncoder
 from . import config
 
 
-def downloadPhoto(self, media_id, filename, media=False, path='photos/'):
+def download_photo(self, media_id, filename, media=False, folder='photos'):
     if not media:
-        self.mediaInfo(media_id)
-        if not self.LastJson.get('items'):
+        self.media_info(media_id)
+        if not self.last_json.get('items'):
             return True
-        media = self.LastJson['items'][0]
-    filename = '{0}_{1}.jpg'.format(media['user']['username'], media_id) if not filename else '{0}.jpg'.format(filename)
-    if media['media_type'] != 1:
+        media = self.last_json['items'][0]
+    if media['media_type'] == 2:
         return True
-    images = media['image_versions2']['candidates']
-    if os.path.exists(path + filename):
-        return os.path.abspath(path + filename)
-    response = self.session.get(images[0]['url'], stream=True)
-    if response.status_code == 200:
-        with open(path + filename, 'wb') as f:
-            response.raw.decode_content = True
-            shutil.copyfileobj(response.raw, f)
-        return os.path.abspath(path + filename)
+    elif media['media_type'] == 1:
+        filename = ('{}_{}.jpg'.format(media['user']['username'], media_id)
+                    if not filename else '{}.jpg'.format(filename))
+        images = media['image_versions2']['candidates']
+        fname = os.path.join(folder, filename)
+        if os.path.exists(fname):
+            return os.path.abspath(fname)
+        response = self.session.get(images[0]['url'], stream=True)
+        if response.status_code == 200:
+            with open(fname, 'wb') as f:
+                response.raw.decode_content = True
+                shutil.copyfileobj(response.raw, f)
+            return os.path.abspath(fname)
+    else:
+        success = False
+        video_included = False
+        for index in range(len(media["carousel_media"])):
+            if media["carousel_media"][index]["media_type"] != 1:
+                video_included = True
+                continue
+            filename_i = ('{}_{}_{}.jpg'.format(media['user']['username'], media_id, index)
+                          if not filename else '{}_{}.jpg'.format(filename, index))
+            images = media["carousel_media"][index]["image_versions2"]["candidates"]
+            fname = os.path.join(folder, filename_i)
+            if os.path.exists(fname):
+                return os.path.abspath(fname)
+            response = self.session.get(images[0]['url'], stream=True)
+            if response.status_code == 200:
+                success = True
+                with open(fname, 'wb') as f:
+                    response.raw.decode_content = True
+                    shutil.copyfileobj(response.raw, f)
+        if success:
+            return os.path.abspath(fname)
+        elif video_included:
+            return True
 
 
-def compatibleAspectRatio(size):
+def compatible_aspect_ratio(size):
     min_ratio, max_ratio = 4.0 / 5.0, 90.0 / 47.0
     width, height = size
-    this_ratio = 1.0 * width / height
-    return min_ratio <= this_ratio <= max_ratio
+    ratio = width / height
+    return min_ratio <= ratio <= max_ratio
 
 
-def configurePhoto(self, upload_id, photo, caption=''):
-    (w, h) = getImageSize(photo)
-    data = json.dumps({
-        '_csrftoken': self.token,
+def configure_photo(self, upload_id, photo, caption=''):
+    (w, h) = get_image_size(photo)
+    data = self.json_data({
         'media_folder': 'Instagram',
         'source_type': 4,
-        '_uid': self.user_id,
-        '_uuid': self.uuid,
         'caption': caption,
         'upload_id': upload_id,
-        'device': config.DEVICE_SETTINTS,
+        'device': self.device_settings,
         'edits': {
             'crop_original_size': [w * 1.0, h * 1.0],
             'crop_center': [0.0, 0.0],
@@ -57,14 +79,15 @@ def configurePhoto(self, upload_id, photo, caption=''):
             'source_width': w,
             'source_height': h,
         }})
-    return self.SendRequest('media/configure/?', self.generateSignature(data))
+    return self.send_request('media/configure/?', data)
 
 
-def uploadPhoto(self, photo, caption=None, upload_id=None):
+def upload_photo(self, photo, caption=None, upload_id=None):
     if upload_id is None:
         upload_id = str(int(time.time() * 1000))
-    if not compatibleAspectRatio(getImageSize(photo)):
-        self.logger.info('Not compatible photo aspect ratio')
+    if not compatible_aspect_ratio(get_image_size(photo)):
+        self.logger.info('Photo does not have a compatible '
+                         'photo aspect ratio.')
         return False
     data = {
         'upload_id': upload_id,
@@ -81,21 +104,22 @@ def uploadPhoto(self, photo, caption=None, upload_id=None):
                                  'Accept-Encoding': 'gzip, deflate',
                                  'Content-type': m.content_type,
                                  'Connection': 'close',
-                                 'User-Agent': config.USER_AGENT})
+                                 'User-Agent': self.user_agent})
     response = self.session.post(
         config.API_URL + "upload/photo/", data=m.to_string())
     if response.status_code == 200:
-        if self.configurePhoto(upload_id, photo, caption):
+        if self.configure_photo(upload_id, photo, caption):
             self.expose()
             return True
     return False
 
 
-def getImageSize(fname):
+def get_image_size(fname):
     with open(fname, 'rb') as fhandle:
         head = fhandle.read(24)
         if len(head) != 24:
             raise RuntimeError("Invalid Header")
+
         if imghdr.what(fname) == 'png':
             check = struct.unpack('>i', head[4:8])[0]
             if check != 0x0d0a1a0a:
